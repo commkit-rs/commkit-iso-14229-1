@@ -18,12 +18,12 @@ impl UdsSubfunction {
     }
 
     /// Whether the requester asked the server not to send a positive response.
-    pub const fn suppress_positive_response(self) -> bool {
+    pub const fn suppress_pos_rsp_msg_indication_bit(self) -> bool {
         self.0 & 0x80 != 0
     }
 
     /// The sub-function value, with the suppress bit masked off.
-    pub const fn value(self) -> u8 {
+    pub const fn parameter_value(self) -> u8 {
         self.0 & 0x7F
     }
 }

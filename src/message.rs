@@ -1,6 +1,5 @@
 use commkit::{Direction, Message};
 
-use crate::error::UdsError;
 use crate::nrc::UdsNrc;
 
 pub struct UdsMessage<M: Message> {
@@ -8,18 +7,18 @@ pub struct UdsMessage<M: Message> {
 }
 
 impl<M: Message> UdsMessage<M> {
-    pub fn parse(inner: M) -> Result<Self, UdsError> {
+    pub fn parse(inner: M) -> Result<Self, UdsNrc> {
         if inner.as_bytes().is_empty() {
-            return Err(UdsError::TooShort);
+            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { inner })
     }
 
     /// Writes `sid` followed by `payload` into `scratch` and wraps the result as `M`.
-    pub fn build(direction: Direction, sid: u8, payload: &[u8], scratch: &mut [u8]) -> Result<Self, UdsError> {
+    pub fn build(direction: Direction, sid: u8, payload: &[u8], scratch: &mut [u8]) -> Result<Self, UdsNrc> {
         let len = 1 + payload.len();
         if scratch.len() < len {
-            return Err(UdsError::BufferTooSmall);
+            return Err(UdsNrc::RESPONSE_TOO_LONG);
         }
 
         scratch[0] = sid;
@@ -52,16 +51,16 @@ impl UdsNegativeResponse {
     /// The fixed SID negative responses are sent under.
     pub const SID: u8 = 0x7F;
 
-    pub fn decode(data: &[u8]) -> Result<Self, UdsError> {
+    pub fn decode(data: &[u8]) -> Result<Self, UdsNrc> {
         if data.len() < 2 {
-            return Err(UdsError::TooShort);
+            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { request_sid: data[0], nrc: UdsNrc::new(data[1]) })
     }
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsError> {
+    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         if buf.len() < 2 {
-            return Err(UdsError::BufferTooSmall);
+            return Err(UdsNrc::RESPONSE_TOO_LONG);
         }
         buf[0] = self.request_sid;
         buf[1] = self.nrc.raw();

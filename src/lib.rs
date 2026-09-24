@@ -1,6 +1,6 @@
 #![no_std]
 
-mod error;
+mod memory;
 mod message;
 mod nrc;
 mod service;
@@ -10,7 +10,7 @@ mod subfunction;
 
 pub mod services;
 
-pub use error::UdsError;
+pub use memory::{AddressAndLengthFormatIdentifier, MemoryAddressAndSize};
 pub use message::{UdsMessage, UdsNegativeResponse};
 pub use nrc::UdsNrc;
 pub use service::UdsService;

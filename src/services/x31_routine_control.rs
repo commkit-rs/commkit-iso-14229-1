@@ -1,4 +1,4 @@
-use crate::error::UdsError;
+use crate::nrc::UdsNrc;
 use crate::service::UdsService;
 use crate::subfunction::UdsSubfunction;
 
@@ -28,26 +28,28 @@ impl RoutineControlType {
     }
 }
 
-pub struct X31RoutineControl;
+#[allow(non_camel_case_types)]
+pub struct x31_RoutineControl;
 
-impl UdsService for X31RoutineControl {
+impl UdsService for x31_RoutineControl {
     const SID: u8 = 0x31;
 
-    type Request<'a> = X31RoutineControlRequest<'a>;
-    type Response<'a> = X31RoutineControlResponse<'a>;
+    type Request<'a> = x31_RoutineControlRequest<'a>;
+    type Response<'a> = x31_RoutineControlResponse<'a>;
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X31RoutineControlRequest<'a> {
+pub struct x31_RoutineControlRequest<'a> {
     pub subfunction: UdsSubfunction,
     pub routine_identifier: u16,
     pub routine_control_option_data: &'a [u8],
 }
 
-impl<'a> X31RoutineControlRequest<'a> {
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsError> {
+impl<'a> x31_RoutineControlRequest<'a> {
+    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
         if data.len() < 3 {
-            return Err(UdsError::TooShort);
+            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self {
             subfunction: UdsSubfunction::new(data[0]),
@@ -56,10 +58,10 @@ impl<'a> X31RoutineControlRequest<'a> {
         })
     }
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsError> {
+    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         let len = 3 + self.routine_control_option_data.len();
         if buf.len() < len {
-            return Err(UdsError::BufferTooSmall);
+            return Err(UdsNrc::RESPONSE_TOO_LONG);
         }
 
         buf[0] = self.subfunction.raw();
@@ -70,22 +72,23 @@ impl<'a> X31RoutineControlRequest<'a> {
     }
 
     pub fn routine_control_type(&self) -> Option<RoutineControlType> {
-        RoutineControlType::from_u8(self.subfunction.value())
+        RoutineControlType::from_u8(self.subfunction.parameter_value())
     }
 }
 
+#[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct X31RoutineControlResponse<'a> {
+pub struct x31_RoutineControlResponse<'a> {
     pub subfunction: UdsSubfunction,
     pub routine_identifier: u16,
     pub routine_info: u8,
     pub routine_status_record: &'a [u8],
 }
 
-impl<'a> X31RoutineControlResponse<'a> {
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsError> {
+impl<'a> x31_RoutineControlResponse<'a> {
+    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
         if data.len() < 4 {
-            return Err(UdsError::TooShort);
+            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self {
             subfunction: UdsSubfunction::new(data[0]),
@@ -95,10 +98,10 @@ impl<'a> X31RoutineControlResponse<'a> {
         })
     }
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsError> {
+    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         let len = 4 + self.routine_status_record.len();
         if buf.len() < len {
-            return Err(UdsError::BufferTooSmall);
+            return Err(UdsNrc::RESPONSE_TOO_LONG);
         }
 
         buf[0] = self.subfunction.raw();
@@ -110,6 +113,6 @@ impl<'a> X31RoutineControlResponse<'a> {
     }
 
     pub fn routine_control_type(&self) -> Option<RoutineControlType> {
-        RoutineControlType::from_u8(self.subfunction.value())
+        RoutineControlType::from_u8(self.subfunction.parameter_value())
     }
 }
