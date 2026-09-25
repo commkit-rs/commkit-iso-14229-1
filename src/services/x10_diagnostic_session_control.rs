@@ -1,7 +1,9 @@
+use commkit::TryTo;
+
 use commkit::Duration;
 
 use crate::nrc::UdsNrc;
-use crate::service::UdsService;
+use crate::service::{UdsService, UdsServiceRequest, UdsServiceResponse};
 use crate::subfunction::UdsSubfunction;
 
 /*
@@ -70,23 +72,37 @@ pub struct x10_DiagnosticSessionControlRequest {
 impl x10_DiagnosticSessionControlRequest {
     pub const LEN: usize = 1;
 
-    pub fn decode(data: &[u8]) -> Result<Self, UdsNrc> {
+    pub const fn diagnostic_session_type(&self) -> Option<DiagnosticSessionType> {
+        DiagnosticSessionType::from_u8(self.subfunction.parameter_value())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x10_DiagnosticSessionControlRequest {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         if data.len() != Self::LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { subfunction: UdsSubfunction::new(data[0]) })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x10_DiagnosticSessionControlRequest {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         if buf.len() < Self::LEN {
             return Err(UdsNrc::RESPONSE_TOO_LONG);
         }
         buf[0] = self.subfunction.raw();
         Ok(Self::LEN)
     }
+}
 
-    pub const fn diagnostic_session_type(&self) -> Option<DiagnosticSessionType> {
-        DiagnosticSessionType::from_u8(self.subfunction.parameter_value())
+impl<'a> UdsServiceRequest<'a> for x10_DiagnosticSessionControlRequest {
+    fn get_subfunction(&self) -> Option<UdsSubfunction> {
+        Some(self.subfunction)
     }
 }
 
@@ -143,7 +159,19 @@ impl x10_DiagnosticSessionControlResponse {
     pub const MIN_LEN: usize = 1;
     pub const MAX_LEN: usize = Self::MIN_LEN + SessionParameterRecord::LEN;
 
-    pub fn decode(data: &[u8]) -> Result<Self, UdsNrc> {
+    pub const fn encoded_len(&self) -> usize {
+        if self.session_parameter_record.is_some() { Self::MAX_LEN } else { Self::MIN_LEN }
+    }
+
+    pub const fn diagnostic_session_type(&self) -> Option<DiagnosticSessionType> {
+        DiagnosticSessionType::from_u8(self.subfunction.parameter_value())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x10_DiagnosticSessionControlResponse {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         let session_parameter_record = match data.len() {
             Self::MIN_LEN => None,
             Self::MAX_LEN => Some(SessionParameterRecord::decode(&data[1..])?),
@@ -151,8 +179,12 @@ impl x10_DiagnosticSessionControlResponse {
         };
         Ok(Self { subfunction: UdsSubfunction::new(data[0]), session_parameter_record })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x10_DiagnosticSessionControlResponse {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         let len = self.encoded_len();
         if buf.len() < len {
             return Err(UdsNrc::RESPONSE_TOO_LONG);
@@ -163,12 +195,6 @@ impl x10_DiagnosticSessionControlResponse {
         }
         Ok(len)
     }
-
-    pub const fn encoded_len(&self) -> usize {
-        if self.session_parameter_record.is_some() { Self::MAX_LEN } else { Self::MIN_LEN }
-    }
-
-    pub const fn diagnostic_session_type(&self) -> Option<DiagnosticSessionType> {
-        DiagnosticSessionType::from_u8(self.subfunction.parameter_value())
-    }
 }
+
+impl<'a> UdsServiceResponse<'a> for x10_DiagnosticSessionControlResponse {}

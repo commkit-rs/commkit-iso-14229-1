@@ -1,20 +1,28 @@
 #![no_std]
 
+mod client;
 mod memory;
 mod message;
 mod nrc;
+mod server;
 mod service;
-mod service_entry;
 mod sid;
 mod subfunction;
 
 pub mod services;
 
-pub use memory::{AddressAndLengthFormatIdentifier, MemoryAddressAndSize};
-pub use message::{UdsMessage, UdsNegativeResponse};
+pub use client::{UdsClient, UdsClientConfig, UdsClientError, UdsClientEvent};
+pub use memory::{
+    AddressAndLengthFormatIdentifier, DataFormatIdentifier, LengthFormatIdentifier, MaxNumberOfBlockLength,
+    MemoryAddressAndSize,
+};
+pub use message::UdsMessage;
 pub use nrc::UdsNrc;
-pub use service::UdsService;
-pub use service_entry::UdsServiceEntry;
+pub use service::{UdsService, UdsServiceRequest, UdsServiceResponse};
+pub use server::{
+    DispatchResult, HandlerResult, SECURITY_LEVEL_LOCKED, UdsRequestHandler, UdsSendFn, UdsServer, UdsServerConfig,
+    UdsServerEntry, UdsServerOutcome, UdsServerState, UdsServerTable, positive_response_sid,
+};
 pub use sid::UdsSid;
 pub use subfunction::UdsSubfunction;
 

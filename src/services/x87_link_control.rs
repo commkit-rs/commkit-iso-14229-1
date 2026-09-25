@@ -1,5 +1,7 @@
+use commkit::TryTo;
+
 use crate::nrc::UdsNrc;
-use crate::service::UdsService;
+use crate::service::{UdsService, UdsServiceRequest, UdsServiceResponse};
 use crate::subfunction::UdsSubfunction;
 
 /*
@@ -115,23 +117,6 @@ impl<'a> x87_LinkControlRequest<'a> {
     pub const MIN_LEN: usize = 1;
     pub const LINK_RECORD_LEN: usize = 3;
 
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
-        if data.len() < Self::MIN_LEN {
-            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        }
-        Ok(Self { subfunction: UdsSubfunction::new(data[0]), data: &data[1..] })
-    }
-
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
-        let len = self.encoded_len();
-        if buf.len() < len {
-            return Err(UdsNrc::RESPONSE_TOO_LONG);
-        }
-        buf[0] = self.subfunction.raw();
-        buf[1..len].copy_from_slice(self.data);
-        Ok(len)
-    }
-
     pub const fn encoded_len(&self) -> usize {
         Self::MIN_LEN + self.data.len()
     }
@@ -164,6 +149,37 @@ impl<'a> x87_LinkControlRequest<'a> {
     }
 }
 
+impl<'a> TryFrom<&'a [u8]> for x87_LinkControlRequest<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
+        if data.len() < Self::MIN_LEN {
+            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
+        }
+        Ok(Self { subfunction: UdsSubfunction::new(data[0]), data: &data[1..] })
+    }
+}
+
+impl TryTo for x87_LinkControlRequest<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+        let len = self.encoded_len();
+        if buf.len() < len {
+            return Err(UdsNrc::RESPONSE_TOO_LONG);
+        }
+        buf[0] = self.subfunction.raw();
+        buf[1..len].copy_from_slice(self.data);
+        Ok(len)
+    }
+}
+
+impl<'a> UdsServiceRequest<'a> for x87_LinkControlRequest<'a> {
+    fn get_subfunction(&self) -> Option<UdsSubfunction> {
+        Some(self.subfunction)
+    }
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct x87_LinkControlResponse {
@@ -173,22 +189,32 @@ pub struct x87_LinkControlResponse {
 impl x87_LinkControlResponse {
     pub const LEN: usize = 1;
 
-    pub fn decode(data: &[u8]) -> Result<Self, UdsNrc> {
+    pub const fn link_control_type(&self) -> Option<LinkControlType> {
+        LinkControlType::from_u8(self.subfunction.parameter_value())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x87_LinkControlResponse {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         if data.len() != Self::LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { subfunction: UdsSubfunction::new(data[0]) })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x87_LinkControlResponse {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         if buf.len() < Self::LEN {
             return Err(UdsNrc::RESPONSE_TOO_LONG);
         }
         buf[0] = self.subfunction.raw();
         Ok(Self::LEN)
     }
-
-    pub const fn link_control_type(&self) -> Option<LinkControlType> {
-        LinkControlType::from_u8(self.subfunction.parameter_value())
-    }
 }
+
+impl<'a> UdsServiceResponse<'a> for x87_LinkControlResponse {}

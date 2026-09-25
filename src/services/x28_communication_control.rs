@@ -1,5 +1,7 @@
+use commkit::TryTo;
+
 use crate::nrc::UdsNrc;
-use crate::service::UdsService;
+use crate::service::{UdsService, UdsServiceRequest, UdsServiceResponse};
 use crate::subfunction::UdsSubfunction;
 
 /*
@@ -160,7 +162,19 @@ impl x28_CommunicationControlRequest {
     pub const MIN_LEN: usize = 2;
     pub const MAX_LEN: usize = Self::MIN_LEN + 2;
 
-    pub fn decode(data: &[u8]) -> Result<Self, UdsNrc> {
+    pub const fn encoded_len(&self) -> usize {
+        if self.node_identification_number.is_some() { Self::MAX_LEN } else { Self::MIN_LEN }
+    }
+
+    pub const fn control_type(&self) -> Option<ControlType> {
+        ControlType::from_u8(self.subfunction.parameter_value())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x28_CommunicationControlRequest {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         let node_identification_number = match data.len() {
             Self::MIN_LEN => None,
             Self::MAX_LEN => Some(u16::from_be_bytes([data[2], data[3]])),
@@ -172,8 +186,12 @@ impl x28_CommunicationControlRequest {
             node_identification_number,
         })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x28_CommunicationControlRequest {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         let len = self.encoded_len();
         if buf.len() < len {
             return Err(UdsNrc::RESPONSE_TOO_LONG);
@@ -185,13 +203,11 @@ impl x28_CommunicationControlRequest {
         }
         Ok(len)
     }
+}
 
-    pub const fn encoded_len(&self) -> usize {
-        if self.node_identification_number.is_some() { Self::MAX_LEN } else { Self::MIN_LEN }
-    }
-
-    pub const fn control_type(&self) -> Option<ControlType> {
-        ControlType::from_u8(self.subfunction.parameter_value())
+impl<'a> UdsServiceRequest<'a> for x28_CommunicationControlRequest {
+    fn get_subfunction(&self) -> Option<UdsSubfunction> {
+        Some(self.subfunction)
     }
 }
 
@@ -204,22 +220,32 @@ pub struct x28_CommunicationControlResponse {
 impl x28_CommunicationControlResponse {
     pub const LEN: usize = 1;
 
-    pub fn decode(data: &[u8]) -> Result<Self, UdsNrc> {
+    pub const fn control_type(&self) -> Option<ControlType> {
+        ControlType::from_u8(self.subfunction.parameter_value())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x28_CommunicationControlResponse {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         if data.len() != Self::LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { subfunction: UdsSubfunction::new(data[0]) })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x28_CommunicationControlResponse {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         if buf.len() < Self::LEN {
             return Err(UdsNrc::RESPONSE_TOO_LONG);
         }
         buf[0] = self.subfunction.raw();
         Ok(Self::LEN)
     }
-
-    pub const fn control_type(&self) -> Option<ControlType> {
-        ControlType::from_u8(self.subfunction.parameter_value())
-    }
 }
+
+impl<'a> UdsServiceResponse<'a> for x28_CommunicationControlResponse {}

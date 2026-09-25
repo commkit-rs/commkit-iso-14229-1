@@ -1,6 +1,25 @@
+use commkit::TryTo;
+
 use crate::nrc::UdsNrc;
-use crate::service::UdsService;
+use crate::service::{UdsService, UdsServiceRequest, UdsServiceResponse};
 use crate::subfunction::UdsSubfunction;
+
+/*
+    ISO 14229-1 Section 13.2
+
+    The RoutineControl service is used by the client to execute a defined sequence of steps and obtain any relevant results
+
+    Supported NRC:
+        - SFNS
+        - IMLOIF
+        - CNC
+        - RSE
+        - ROOR
+        - SAD
+        - GPF
+*/
+
+const RID_LEN: usize = 2;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RoutineControlType {
@@ -43,36 +62,54 @@ impl UdsService for x31_RoutineControl {
 pub struct x31_RoutineControlRequest<'a> {
     pub subfunction: UdsSubfunction,
     pub routine_identifier: u16,
-    pub routine_control_option_data: &'a [u8],
+    pub routine_control_option_record: &'a [u8],
 }
 
 impl<'a> x31_RoutineControlRequest<'a> {
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
-        if data.len() < 3 {
+    pub const MIN_LEN: usize = 1 + RID_LEN;
+
+    pub const fn encoded_len(&self) -> usize {
+        Self::MIN_LEN + self.routine_control_option_record.len()
+    }
+
+    pub const fn routine_control_type(&self) -> Option<RoutineControlType> {
+        RoutineControlType::from_u8(self.subfunction.parameter_value())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x31_RoutineControlRequest<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
+        if data.len() < Self::MIN_LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self {
             subfunction: UdsSubfunction::new(data[0]),
             routine_identifier: u16::from_be_bytes([data[1], data[2]]),
-            routine_control_option_data: &data[3..],
+            routine_control_option_record: &data[Self::MIN_LEN..],
         })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
-        let len = 3 + self.routine_control_option_data.len();
+impl TryTo for x31_RoutineControlRequest<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+        let len = self.encoded_len();
         if buf.len() < len {
             return Err(UdsNrc::RESPONSE_TOO_LONG);
         }
-
         buf[0] = self.subfunction.raw();
-        buf[1..3].copy_from_slice(&self.routine_identifier.to_be_bytes());
-        buf[3..len].copy_from_slice(self.routine_control_option_data);
-
+        buf[1..Self::MIN_LEN].copy_from_slice(&self.routine_identifier.to_be_bytes());
+        buf[Self::MIN_LEN..len].copy_from_slice(self.routine_control_option_record);
         Ok(len)
     }
+}
 
-    pub fn routine_control_type(&self) -> Option<RoutineControlType> {
-        RoutineControlType::from_u8(self.subfunction.parameter_value())
+impl<'a> UdsServiceRequest<'a> for x31_RoutineControlRequest<'a> {
+    fn get_subfunction(&self) -> Option<UdsSubfunction> {
+        Some(self.subfunction)
     }
 }
 
@@ -81,38 +118,56 @@ impl<'a> x31_RoutineControlRequest<'a> {
 pub struct x31_RoutineControlResponse<'a> {
     pub subfunction: UdsSubfunction,
     pub routine_identifier: u16,
-    pub routine_info: u8,
     pub routine_status_record: &'a [u8],
 }
 
 impl<'a> x31_RoutineControlResponse<'a> {
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
-        if data.len() < 4 {
+    pub const MIN_LEN: usize = 1 + RID_LEN;
+
+    pub const fn encoded_len(&self) -> usize {
+        Self::MIN_LEN + self.routine_status_record.len()
+    }
+
+    pub const fn routine_control_type(&self) -> Option<RoutineControlType> {
+        RoutineControlType::from_u8(self.subfunction.parameter_value())
+    }
+
+    pub const fn split_routine_info(&self) -> Option<(u8, &'a [u8])> {
+        match self.routine_status_record {
+            [routine_info, routine_status_record @ ..] => Some((*routine_info, routine_status_record)),
+            [] => None,
+        }
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x31_RoutineControlResponse<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
+        if data.len() < Self::MIN_LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self {
             subfunction: UdsSubfunction::new(data[0]),
             routine_identifier: u16::from_be_bytes([data[1], data[2]]),
-            routine_info: data[3],
-            routine_status_record: &data[4..],
+            routine_status_record: &data[Self::MIN_LEN..],
         })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
-        let len = 4 + self.routine_status_record.len();
+impl TryTo for x31_RoutineControlResponse<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+        let len = self.encoded_len();
         if buf.len() < len {
             return Err(UdsNrc::RESPONSE_TOO_LONG);
         }
-
         buf[0] = self.subfunction.raw();
-        buf[1..3].copy_from_slice(&self.routine_identifier.to_be_bytes());
-        buf[3] = self.routine_info;
-        buf[4..len].copy_from_slice(self.routine_status_record);
-
+        buf[1..Self::MIN_LEN].copy_from_slice(&self.routine_identifier.to_be_bytes());
+        buf[Self::MIN_LEN..len].copy_from_slice(self.routine_status_record);
         Ok(len)
     }
-
-    pub fn routine_control_type(&self) -> Option<RoutineControlType> {
-        RoutineControlType::from_u8(self.subfunction.parameter_value())
-    }
 }
+
+impl<'a> UdsServiceResponse<'a> for x31_RoutineControlResponse<'a> {}

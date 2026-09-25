@@ -1,5 +1,7 @@
+use commkit::TryTo;
+
 use crate::nrc::UdsNrc;
-use crate::service::UdsService;
+use crate::service::{UdsService, UdsServiceRequest, UdsServiceResponse};
 use crate::subfunction::UdsSubfunction;
 
 /*
@@ -78,23 +80,6 @@ pub struct x27_SecurityAccessRequest<'a> {
 impl<'a> x27_SecurityAccessRequest<'a> {
     pub const MIN_LEN: usize = 1;
 
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
-        if data.len() < Self::MIN_LEN {
-            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        }
-        Ok(Self { subfunction: UdsSubfunction::new(data[0]), data: &data[1..] })
-    }
-
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
-        let len = self.encoded_len();
-        if buf.len() < len {
-            return Err(UdsNrc::RESPONSE_TOO_LONG);
-        }
-        buf[0] = self.subfunction.raw();
-        buf[1..len].copy_from_slice(self.data);
-        Ok(len)
-    }
-
     pub const fn encoded_len(&self) -> usize {
         Self::MIN_LEN + self.data.len()
     }
@@ -112,6 +97,37 @@ impl<'a> x27_SecurityAccessRequest<'a> {
     }
 }
 
+impl<'a> TryFrom<&'a [u8]> for x27_SecurityAccessRequest<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
+        if data.len() < Self::MIN_LEN {
+            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
+        }
+        Ok(Self { subfunction: UdsSubfunction::new(data[0]), data: &data[1..] })
+    }
+}
+
+impl TryTo for x27_SecurityAccessRequest<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+        let len = self.encoded_len();
+        if buf.len() < len {
+            return Err(UdsNrc::RESPONSE_TOO_LONG);
+        }
+        buf[0] = self.subfunction.raw();
+        buf[1..len].copy_from_slice(self.data);
+        Ok(len)
+    }
+}
+
+impl<'a> UdsServiceRequest<'a> for x27_SecurityAccessRequest<'a> {
+    fn get_subfunction(&self) -> Option<UdsSubfunction> {
+        Some(self.subfunction)
+    }
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct x27_SecurityAccessResponse<'a> {
@@ -121,23 +137,6 @@ pub struct x27_SecurityAccessResponse<'a> {
 
 impl<'a> x27_SecurityAccessResponse<'a> {
     pub const MIN_LEN: usize = 1;
-
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
-        if data.len() < Self::MIN_LEN {
-            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        }
-        Ok(Self { subfunction: UdsSubfunction::new(data[0]), security_seed: &data[1..] })
-    }
-
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
-        let len = self.encoded_len();
-        if buf.len() < len {
-            return Err(UdsNrc::RESPONSE_TOO_LONG);
-        }
-        buf[0] = self.subfunction.raw();
-        buf[1..len].copy_from_slice(self.security_seed);
-        Ok(len)
-    }
 
     pub const fn encoded_len(&self) -> usize {
         Self::MIN_LEN + self.security_seed.len()
@@ -152,3 +151,30 @@ impl<'a> x27_SecurityAccessResponse<'a> {
         !self.security_seed.is_empty() && self.security_seed.iter().all(|&b| b == 0)
     }
 }
+
+impl<'a> TryFrom<&'a [u8]> for x27_SecurityAccessResponse<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
+        if data.len() < Self::MIN_LEN {
+            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
+        }
+        Ok(Self { subfunction: UdsSubfunction::new(data[0]), security_seed: &data[1..] })
+    }
+}
+
+impl TryTo for x27_SecurityAccessResponse<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+        let len = self.encoded_len();
+        if buf.len() < len {
+            return Err(UdsNrc::RESPONSE_TOO_LONG);
+        }
+        buf[0] = self.subfunction.raw();
+        buf[1..len].copy_from_slice(self.security_seed);
+        Ok(len)
+    }
+}
+
+impl<'a> UdsServiceResponse<'a> for x27_SecurityAccessResponse<'a> {}

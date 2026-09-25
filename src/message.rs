@@ -40,30 +40,3 @@ impl<M: Message> UdsMessage<M> {
         self.inner
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct UdsNegativeResponse {
-    pub request_sid: u8,
-    pub nrc: UdsNrc,
-}
-
-impl UdsNegativeResponse {
-    /// The fixed SID negative responses are sent under.
-    pub const SID: u8 = 0x7F;
-
-    pub fn decode(data: &[u8]) -> Result<Self, UdsNrc> {
-        if data.len() < 2 {
-            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        }
-        Ok(Self { request_sid: data[0], nrc: UdsNrc::new(data[1]) })
-    }
-
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
-        if buf.len() < 2 {
-            return Err(UdsNrc::RESPONSE_TOO_LONG);
-        }
-        buf[0] = self.request_sid;
-        buf[1] = self.nrc.raw();
-        Ok(2)
-    }
-}

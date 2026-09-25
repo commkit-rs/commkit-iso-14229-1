@@ -1,5 +1,7 @@
+use commkit::TryTo;
+
 use crate::nrc::UdsNrc;
-use crate::service::UdsService;
+use crate::service::{UdsService, UdsServiceRequest, UdsServiceResponse};
 use crate::subfunction::UdsSubfunction;
 
 /*
@@ -63,14 +65,30 @@ pub struct x85_ControlDtcSettingRequest<'a> {
 impl<'a> x85_ControlDtcSettingRequest<'a> {
     pub const MIN_LEN: usize = 1;
 
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
+    pub const fn encoded_len(&self) -> usize {
+        Self::MIN_LEN + self.dtc_setting_control_option_record.len()
+    }
+
+    pub const fn dtc_setting_type(&self) -> Option<DtcSettingType> {
+        DtcSettingType::from_u8(self.subfunction.parameter_value())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x85_ControlDtcSettingRequest<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         if data.len() < Self::MIN_LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { subfunction: UdsSubfunction::new(data[0]), dtc_setting_control_option_record: &data[1..] })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x85_ControlDtcSettingRequest<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         let len = self.encoded_len();
         if buf.len() < len {
             return Err(UdsNrc::RESPONSE_TOO_LONG);
@@ -79,13 +97,11 @@ impl<'a> x85_ControlDtcSettingRequest<'a> {
         buf[1..len].copy_from_slice(self.dtc_setting_control_option_record);
         Ok(len)
     }
+}
 
-    pub const fn encoded_len(&self) -> usize {
-        Self::MIN_LEN + self.dtc_setting_control_option_record.len()
-    }
-
-    pub const fn dtc_setting_type(&self) -> Option<DtcSettingType> {
-        DtcSettingType::from_u8(self.subfunction.parameter_value())
+impl<'a> UdsServiceRequest<'a> for x85_ControlDtcSettingRequest<'a> {
+    fn get_subfunction(&self) -> Option<UdsSubfunction> {
+        Some(self.subfunction)
     }
 }
 
@@ -98,22 +114,32 @@ pub struct x85_ControlDtcSettingResponse {
 impl x85_ControlDtcSettingResponse {
     pub const LEN: usize = 1;
 
-    pub fn decode(data: &[u8]) -> Result<Self, UdsNrc> {
+    pub const fn dtc_setting_type(&self) -> Option<DtcSettingType> {
+        DtcSettingType::from_u8(self.subfunction.parameter_value())
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x85_ControlDtcSettingResponse {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         if data.len() != Self::LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { subfunction: UdsSubfunction::new(data[0]) })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x85_ControlDtcSettingResponse {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         if buf.len() < Self::LEN {
             return Err(UdsNrc::RESPONSE_TOO_LONG);
         }
         buf[0] = self.subfunction.raw();
         Ok(Self::LEN)
     }
-
-    pub const fn dtc_setting_type(&self) -> Option<DtcSettingType> {
-        DtcSettingType::from_u8(self.subfunction.parameter_value())
-    }
 }
+
+impl<'a> UdsServiceResponse<'a> for x85_ControlDtcSettingResponse {}

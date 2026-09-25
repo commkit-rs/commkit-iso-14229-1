@@ -1,6 +1,9 @@
+use commkit::TryTo;
+
 use crate::memory::MemoryAddressAndSize;
 use crate::nrc::UdsNrc;
-use crate::service::UdsService;
+use crate::service::{UdsService, UdsServiceRequest, UdsServiceResponse};
+use crate::subfunction::UdsSubfunction;
 
 /*
     ISO 14229-1 Section 10.3
@@ -33,20 +36,34 @@ pub struct x23_ReadMemoryByAddressRequest {
 impl x23_ReadMemoryByAddressRequest {
     pub const MIN_LEN: usize = MemoryAddressAndSize::MIN_LEN;
 
-    pub fn decode(data: &[u8]) -> Result<Self, UdsNrc> {
+    pub const fn encoded_len(&self) -> usize {
+        self.memory.encoded_len()
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x23_ReadMemoryByAddressRequest {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         let (memory, len) = MemoryAddressAndSize::decode(data)?;
         if data.len() != len {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { memory })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x23_ReadMemoryByAddressRequest {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         self.memory.encode(buf)
     }
+}
 
-    pub const fn encoded_len(&self) -> usize {
-        self.memory.encoded_len()
+impl<'a> UdsServiceRequest<'a> for x23_ReadMemoryByAddressRequest {
+    fn get_subfunction(&self) -> Option<UdsSubfunction> {
+        None
     }
 }
 
@@ -59,14 +76,26 @@ pub struct x23_ReadMemoryByAddressResponse<'a> {
 impl<'a> x23_ReadMemoryByAddressResponse<'a> {
     pub const MIN_LEN: usize = 1;
 
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
+    pub const fn encoded_len(&self) -> usize {
+        self.data_record.len()
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x23_ReadMemoryByAddressResponse<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         if data.len() < Self::MIN_LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { data_record: data })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x23_ReadMemoryByAddressResponse<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         let len = self.encoded_len();
         if len < Self::MIN_LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
@@ -77,8 +106,6 @@ impl<'a> x23_ReadMemoryByAddressResponse<'a> {
         buf[..len].copy_from_slice(self.data_record);
         Ok(len)
     }
-
-    pub const fn encoded_len(&self) -> usize {
-        self.data_record.len()
-    }
 }
+
+impl<'a> UdsServiceResponse<'a> for x23_ReadMemoryByAddressResponse<'a> {}

@@ -1,5 +1,8 @@
+use commkit::TryTo;
+
 use crate::nrc::UdsNrc;
-use crate::service::UdsService;
+use crate::service::{UdsService, UdsServiceRequest, UdsServiceResponse};
+use crate::subfunction::UdsSubfunction;
 
 /*
     ISO 14229-1 Section 9.8
@@ -30,14 +33,26 @@ pub struct x84_SecuredDataTransmissionRequest<'a> {
 impl<'a> x84_SecuredDataTransmissionRequest<'a> {
     pub const MIN_LEN: usize = 1;
 
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
+    pub const fn encoded_len(&self) -> usize {
+        self.security_data_request_record.len()
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x84_SecuredDataTransmissionRequest<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         if data.len() < Self::MIN_LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { security_data_request_record: data })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x84_SecuredDataTransmissionRequest<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         let len = self.encoded_len();
         if len < Self::MIN_LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
@@ -48,9 +63,11 @@ impl<'a> x84_SecuredDataTransmissionRequest<'a> {
         buf[..len].copy_from_slice(self.security_data_request_record);
         Ok(len)
     }
+}
 
-    pub const fn encoded_len(&self) -> usize {
-        self.security_data_request_record.len()
+impl<'a> UdsServiceRequest<'a> for x84_SecuredDataTransmissionRequest<'a> {
+    fn get_subfunction(&self) -> Option<UdsSubfunction> {
+        None
     }
 }
 
@@ -63,14 +80,26 @@ pub struct x84_SecuredDataTransmissionResponse<'a> {
 impl<'a> x84_SecuredDataTransmissionResponse<'a> {
     pub const MIN_LEN: usize = 1;
 
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
+    pub const fn encoded_len(&self) -> usize {
+        self.security_data_response_record.len()
+    }
+}
+
+impl<'a> TryFrom<&'a [u8]> for x84_SecuredDataTransmissionResponse<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
         if data.len() < Self::MIN_LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
         }
         Ok(Self { security_data_response_record: data })
     }
+}
 
-    pub fn encode(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+impl TryTo for x84_SecuredDataTransmissionResponse<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
         let len = self.encoded_len();
         if len < Self::MIN_LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
@@ -81,8 +110,6 @@ impl<'a> x84_SecuredDataTransmissionResponse<'a> {
         buf[..len].copy_from_slice(self.security_data_response_record);
         Ok(len)
     }
-
-    pub const fn encoded_len(&self) -> usize {
-        self.security_data_response_record.len()
-    }
 }
+
+impl<'a> UdsServiceResponse<'a> for x84_SecuredDataTransmissionResponse<'a> {}

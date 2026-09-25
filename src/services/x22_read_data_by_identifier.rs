@@ -1,5 +1,8 @@
+use commkit::TryTo;
+
 use crate::nrc::UdsNrc;
-use crate::service::UdsService;
+use crate::service::{UdsService, UdsServiceRequest, UdsServiceResponse};
+use crate::subfunction::UdsSubfunction;
 
 /*
     ISO 14229-1 Section 10.2
@@ -33,11 +36,8 @@ pub struct x22_ReadDataByIdentifierRequest<'a> {
 }
 
 impl<'a> x22_ReadDataByIdentifierRequest<'a> {
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
-        if data.is_empty() || !data.len().is_multiple_of(DID_LEN) {
-            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        }
-        Ok(Self { data })
+    pub const fn encoded_len(&self) -> usize {
+        self.data.len()
     }
 
     pub fn encode_did(did: u16, buf: &mut [u8]) -> Result<usize, UdsNrc> {
@@ -71,6 +71,36 @@ impl<'a> x22_ReadDataByIdentifierRequest<'a> {
     }
 }
 
+impl<'a> TryFrom<&'a [u8]> for x22_ReadDataByIdentifierRequest<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
+        if data.is_empty() || !data.len().is_multiple_of(DID_LEN) {
+            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
+        }
+        Ok(Self { data })
+    }
+}
+
+impl TryTo for x22_ReadDataByIdentifierRequest<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+        let len = self.encoded_len();
+        if buf.len() < len {
+            return Err(UdsNrc::RESPONSE_TOO_LONG);
+        }
+        buf[..len].copy_from_slice(self.data);
+        Ok(len)
+    }
+}
+
+impl<'a> UdsServiceRequest<'a> for x22_ReadDataByIdentifierRequest<'a> {
+    fn get_subfunction(&self) -> Option<UdsSubfunction> {
+        None
+    }
+}
+
 #[allow(non_camel_case_types)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct x22_ReadDataByIdentifierResponse<'a> {
@@ -78,11 +108,8 @@ pub struct x22_ReadDataByIdentifierResponse<'a> {
 }
 
 impl<'a> x22_ReadDataByIdentifierResponse<'a> {
-    pub fn decode(data: &'a [u8]) -> Result<Self, UdsNrc> {
-        if data.len() < DID_LEN {
-            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
-        }
-        Ok(Self { data })
+    pub const fn encoded_len(&self) -> usize {
+        self.data.len()
     }
 
     pub fn encode_single(did: u16, value: &[u8], buf: &mut [u8]) -> Result<usize, UdsNrc> {
@@ -103,6 +130,32 @@ impl<'a> x22_ReadDataByIdentifierResponse<'a> {
         self.data
     }
 }
+
+impl<'a> TryFrom<&'a [u8]> for x22_ReadDataByIdentifierResponse<'a> {
+    type Error = UdsNrc;
+
+    fn try_from(data: &'a [u8]) -> Result<Self, UdsNrc> {
+        if data.len() < DID_LEN {
+            return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
+        }
+        Ok(Self { data })
+    }
+}
+
+impl TryTo for x22_ReadDataByIdentifierResponse<'_> {
+    type Error = UdsNrc;
+
+    fn try_to(&self, buf: &mut [u8]) -> Result<usize, UdsNrc> {
+        let len = self.encoded_len();
+        if buf.len() < len {
+            return Err(UdsNrc::RESPONSE_TOO_LONG);
+        }
+        buf[..len].copy_from_slice(self.data);
+        Ok(len)
+    }
+}
+
+impl<'a> UdsServiceResponse<'a> for x22_ReadDataByIdentifierResponse<'a> {}
 
 #[allow(non_camel_case_types)]
 pub struct x22_ReadDataByIdentifierRecords<'a, F> {
@@ -127,6 +180,10 @@ impl<'a, F: Fn(u16) -> Option<usize>> Iterator for x22_ReadDataByIdentifierRecor
 }
 
 impl<'a, F: Fn(u16) -> Option<usize>> x22_ReadDataByIdentifierRecords<'a, F> {
+    pub(crate) fn new(remaining: &'a [u8], len_of: F) -> Self {
+        Self { remaining, len_of }
+    }
+
     fn next_record(&mut self) -> Result<(u16, &'a [u8]), UdsNrc> {
         if self.remaining.len() < DID_LEN {
             return Err(UdsNrc::INCORRECT_MESSAGE_LENGTH_OR_INVALID_FORMAT);
